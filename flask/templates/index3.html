@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webcam Face Detection with OpenCV.js</title>
+    <style>
+        video {
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            display: block;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Webcam Face Detection with OpenCV.js</h1>
+
+    <video id="videoElement" autoplay></video>
+    <canvas id="canvasOutput"></canvas>
+
+    <script src="https://docs.opencv.org/4.5.5/opencv.js"></script>
+    <script>
+        // Initialize OpenCV.js
+        let faceCascadeFile = 'haarcascade_frontalface_default.xml';
+        let faceCascade;
+
+        // Load the face detection cascade file
+        cv['onRuntimeInitialized'] = () => {
+            faceCascade = new cv.CascadeClassifier();
+            faceCascade.load(faceCascadeFile);
+
+            // Start processing video
+            startVideoProcessing();
+        };
+
+        // Function to start video processing
+        function startVideoProcessing() {
+            const videoElement = document.getElementById('videoElement');
+            const canvasOutput = document.getElementById('canvasOutput');
+            const context = canvasOutput.getContext('2d');
+            canvasOutput.width = videoElement.width;
+            canvasOutput.height = videoElement.height;
+
+            // Get access to the webcam stream
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function(stream) {
+                    videoElement.srcObject = stream;
+                })
+                .catch(function(error) {
+                    console.error('Error accessing the webcam:', error);
+                });
+
+            // Event listener to process video frames
+            videoElement.addEventListener('play', function() {
+                const processVideoFrame = () => {
+                    if (videoElement.paused || videoElement.ended) {
+                        return;
+                    }
+
+                    // Read the current video frame
+                    let frame = new cv.Mat(videoElement.height, videoElement.width, cv.CV_8UC4);
+                    context.drawImage(videoElement, 0, 0, videoElement.width, videoElement.height);
+                    frame.data.set(context.getImageData(0, 0, videoElement.width, videoElement.height).data);
+
+                    // Convert the frame to grayscale
+                    let gray = new cv.Mat();
+                    cv.cvtColor(frame, gray, cv.COLOR_RGBA2GRAY);
+
+                    // Detect faces in the frame
+                    let faces = new cv.RectVector();
+                    faceCascade.detectMultiScale(gray, faces, 1.1, 3, 0);
+
+                    // Draw rectangles around detected faces
+                    for (let i = 0; i < faces.size(); ++i) {
+                        let face = faces.get(i);
+                        let point1 = new cv.Point(face.x, face.y);
+                        let point2 = new cv.Point(face.x + face.width, face.y + face.height);
+                        cv.rectangle(frame, point1, point2, [255, 0, 0, 255]);
+                    }
+
+                    // Display the processed frame on the canvas
+                    context.putImageData(new ImageData(new Uint8ClampedArray(frame.data), frame.cols, frame.rows), 0, 0);
+
+                    // Release resources
+                    frame.delete();
+                    gray.delete();
+
+                    // Process next frame
+                    requestAnimationFrame(processVideoFrame);
+                };
+
+                // Start processing video frames
+                processVideoFrame();
+            });
+        }
+    </script>
+</body>
+</html>
